@@ -1,0 +1,77 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-05-03"
+---
+
+```{r}
+
+library(shiny)
+library(shinythemes)
+library(quantmod)
+library(forecast)
+
+
+ui <- fluidPage(
+
+  tags$head(
+    tags$link(rel = "icon", type = "image/png", href = "favicon.png")
+  ),
+  
+
+  theme = shinytheme("cerulean"),
+  titlePanel("Stock analysis applications"),
+  sidebarLayout(
+    sidebarPanel(
+      textInput("symbol", "Enter ticker symbol (e.g. AAPL)：", value = "AAPL"),
+      actionButton("go", "Start the analysis"),
+      br(),
+      sliderInput("n", "Forecast future days：", min = 1, max = 30, value = 5)
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Historical data", plotOutput("plot")),
+        tabPanel("Predict the outcome", plotOutput("forecast"))
+      )
+    )
+  ),
+  
+
+  navbarPage(
+    "About",
+    tabPanel("Describe", 
+             p("This section mainly writes some text about how to view the model"),
+      
+    )
+  )
+)
+
+
+server <- function(input, output) {
+
+  stock_data <- reactive({
+    getSymbols(input$symbol, auto.assign = FALSE)
+  })
+  
+ 
+  output$plot <- renderPlot({
+    chartSeries(stock_data(), theme = "white")
+  })
+  
+
+  output$forecast <- renderPlot({
+
+    model <- auto.arima(Cl(stock_data()))
+    
+ 
+    forecast <- forecast(model, h = input$n)
+    
+
+    plot(forecast, main = "Future stock price forecasts")
+  })
+}
+
+
+shinyApp(ui, server)
+```
+
