@@ -1,0 +1,571 @@
+
+---
+title: "Reg.Hav."
+author: "Yat Kit Chan"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    self_contained: true # Creates a single HTML file as output
+    code_folding: hide # Code folding; allows you to show/hide code chunks
+    code_download: true # Includes a menu to download the code file
+    toc: true # (Optional) Creates a table of contents!
+    toc_float: true # table of contents at the side
+    number_sections: true # (Optional) Puts numbers next to heading/subheadings
+---
+ 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(rugarch)
+library(forecast)
+
+```
+
+```{r}
+
+
+folder_path <- "D:/optiver/Optiver/test"
+
+
+file_names <- list.files(path = folder_path, pattern = "*.csv", full.names = TRUE)
+data_list <- list()
+
+
+for (file_name in file_names) {
+  df <- read.csv(file_name)
+  
+
+  cat("File:", file_name, "\n")
+  print(head(df))
+  
+
+  data_list[[length(data_list) + 1]] <- df
+}
+
+
+combined_df <- bind_rows(data_list)
+print(combined_df)
+
+
+```
+
+```{r}
+
+
+
+stock <- combined_df %>%
+  mutate(WAP = (bid_price1 * ask_size1 + ask_price1 * bid_size1) / (bid_size1 + ask_size1) ,BidAskSpread = ask_price1 / bid_price1 - 1)
+
+
+WAP1 <- stock %>%
+  filter(time_id == 5 & seconds_in_bucket == 16) %>%
+  pull(WAP)
+
+WAP2 <- stock %>%
+  filter(time_id == 5 & seconds_in_bucket == 15) %>%
+  pull(WAP)
+
+log_r <- log(WAP1 / WAP2)
+
+
+stock
+log_r
+
+
+```
+
+
+
+
+
+
+
+```{r}
+
+
+
+stock <- stock %>%
+  mutate(WAP1 = (bid_price1 * ask_size1 + ask_price1 * bid_size1) / (bid_size1 + ask_size1),
+         WAP2 = (bid_price2 * ask_size2 + ask_price2 * bid_size2) / (bid_size2 + ask_size2),
+         log_return = log(WAP1 / WAP2),volatility = sqrt(sum(log_return^2)))
+         
+
+print(stock)
+
+```
+
+```{r}
+
+
+vol <- list()
+
+comp_vol <- function(x) {
+  return(sqrt(sum(x^2)))
+}
+
+for (i in 1:length(log_r1)) {
+  log_r1[[i]]$time_bucket <- ceiling(log_r1[[i]]$time / 5)
+  vol[[i]] <- log_r1[[i]] %>%
+    group_by(time_bucket) %>%
+    summarise(volatility = comp_vol(log_return))
+}
+
+vol[[1]]
+
+
+
+
+```
+
+
+
+
+```{r}
+log_r1 <- list()
+time_IDs <- unique(stock[, 1])[1:500]
+for (i in 1 : length(time_IDs)) {
+  sec <- stock %>% filter(time_id == time_IDs[i]) %>% pull(seconds_in_bucket)
+  price <- stock %>% filter(time_id == time_IDs[i]) %>% pull(WAP)
+  log_r <- log(price[-1] / price[1:(length(price) - 1)])
+  log_r1[[i]] <- data.frame(time = sec[-1], log_return = log_r)
+  time.no.change <- (1:600)[!(1:600 %in% log_r1[[i]]$time)]
+  if (length(time.no.change) > 0) {
+    new.df <- data.frame(time = time.no.change, log_return = 0)
+    log_r1[[i]] <- rbind(log_r1[[i]], new.df)
+    log_r1[[i]] <- log_r1[[i]][order(log_r1[[i]]$time), ]
+  }
+}
+
+vol <- list()
+comp_vol <- function(x) {
+  return(sqrt(sum(x ^ 2)))
+}
+for (i in 1 : length(log_r1)) {
+  log_r1[[i]] <- log_r1[[i]] %>% mutate(time_bucket = ceiling(time / 30))
+  vol[[i]] <- aggregate(log_return ~ time_bucket, data = log_r1[[i]], FUN = comp_vol)
+  colnames(vol[[i]]) <- c('time_bucket', 'volatility')
+}
+```
+
+```{r}
+
+#visualize the 10-min time series for log returns and realised volatility of stock 
+#time_id == 5
+ggplot(data = log_r1[[1]], aes(x = time, y = log_return)) + geom_line() 
+ggplot(data = vol[[1]], aes(x = time_bucket, y = volatility)) + geom_line() + geom_point() 
+
+```
+
+#Regression 
+
+#dependent variable : volatility
+#independent variable : price , order  ,  BidAskSpread 
+
+```{r}
+vol.train <- list()
+vol.val <- list()
+
+for (i in 1 : length(log_r1)) {
+  vol.train[[i]] <- vol[[i]][1:16, ]
+  vol.val[[i]] <- vol[[i]][-(1:16), ]
+}
+```
+
+```{r}
+list.reg <- list() # list for regression
+stock <- stock %>% mutate(time_bucket = ceiling(seconds_in_bucket / 30),
+                            num_order = bid_size1 + ask_size1 + bid_size2 + ask_size2)
+len.train <- length(vol.train[[1]]$volatility)
+
+for (i in 1 : length(vol)) {
+  stats.bucket <- stock %>% 
+    filter(time_id == time_IDs[i] & time_bucket != 0) %>% 
+    select(c(BidAskSpread, WAP, num_order, time_bucket)) 
+  # for each 30-sec time bucket, we compute the following statistics
+  mean.price <- aggregate(WAP ~ time_bucket, data = stats.bucket, FUN = mean)
+  mean.order <- aggregate(num_order ~ time_bucket, data = stats.bucket, FUN = mean)
+  mean.BAS <- aggregate(BidAskSpread ~ time_bucket, data = stats.bucket, FUN = mean)
+  list.reg[[i]] <- data.frame(volatility = vol.train[[i]]$volatility[-1], 
+                              price = mean.price$WAP[1:(len.train - 1)],
+                              order = mean.order$num_order[1:(len.train - 1)],
+                              BidAskSpread = mean.BAS$BidAskSpread[1:(len.train - 1)])
+}
+
+
+
+lm.models <- list()
+
+for (i in 1 : length(vol)) {
+  lm.models[[i]] <- lm(volatility ~ price + order + BidAskSpread, list.reg[[i]],
+                       weights = 0.8 ^ (((len.train - 2):0) / 2))
+}
+
+# for some periods, linear regression performs well
+summary(lm.models[[162]])
+
+```
+#compute the 
+
+
+```{r}
+list.reg.val <- list()
+len.val <- length(vol.val[[1]]$volatility)
+pred.lm <- list()
+
+for (i in 1 : length(vol)) {
+  stats.bucket <- stock %>% 
+    filter(time_id == time_IDs[i] & time_bucket != 0) %>% 
+    select(c(BidAskSpread, WAP, num_order, time_bucket))
+  mean.price <- aggregate(WAP ~ time_bucket, data = stats.bucket, FUN = mean)
+  mean.order <- aggregate(num_order ~ time_bucket, data = stats.bucket, FUN = mean)
+  mean.BAS <- aggregate(BidAskSpread ~ time_bucket, data = stats.bucket, FUN = mean)
+  list.reg.val[[i]] <- 
+    data.frame(volatility = vol.val[[i]]$volatility, 
+               price = mean.price$WAP[len.train:(len.train + len.val - 1)],
+               order = mean.order$num_order[len.train:(len.train + len.val - 1)],
+               BidAskSpread = mean.BAS$BidAskSpread[len.train:(len.train + len.val - 1)])
+  pred.lm[[i]] <- predict(lm.models[[i]], newdata = list.reg.val[[i]])
+}
+```
+
+```{r, warning=F, message=F}
+
+# Compute MSE and QLIKE for each time series in the validation data set
+MSE.lm <- vector()
+QLIKE.lm <- vector()
+for (i in 1:length(vol)) {
+  MSE.lm <- c(MSE.lm, mean((vol.val[[i]]$volatility - pred.lm[[i]])^2))
+  QLIKE.lm <- c(QLIKE.lm, mean(vol.val[[i]]$volatility / pred.lm[[i]] - log(vol.val[[i]]$volatility / pred.lm[[i]]) - 1))
+}
+
+# Create box plots for QLIKE and MSE
+QLIKE_plot <- ggplot(data = data.frame(QLIKE.lm), aes(x = factor(0), y = QLIKE.lm)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x = "", y = "QLIKE", title = "QLIKE Box plot")
+
+MSE_plot <- ggplot(data = data.frame(MSE.lm), aes(x = factor(0), y = MSE.lm)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x = "", y = "MSE", title = "MSE Box plot")
+
+# Display the plots
+QLIKE_plot
+MSE_plot
+
+
+
+```
+```{r}
+
+# Generate sample data for demonstration
+set.seed(123)
+actual_vol <- rnorm(100, mean = 0, sd = 1)
+pred_vol <- actual_vol + rnorm(100, mean = 0, sd = 0.5)
+
+# Calculate Pearson correlation coefficient between actual and predicted volatilities
+correlation <- cor(actual_vol, pred_vol, method = "pearson")
+
+# Combine actual and predicted volatilities into a data frame
+vol_comparison <- data.frame(actual_vol = actual_vol, pred_vol = pred_vol)
+
+# Create a scatter plot of actual vs predicted volatilities
+scatter_plot <- ggplot(vol_comparison, aes(x = actual_vol, y = pred_vol)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Actual Volatility", y = "Predicted Volatility", 
+       title = "Scatter plot of Actual vs Predicted Volatility") +
+  annotate("text", x = 1, y = 1.5, label = paste("Correlation =", round(correlation, 2)))
+
+# Create a line plot of actual vs predicted volatilities
+line_plot <- ggplot(vol_comparison, aes(x = 1:length(actual_vol))) +
+  geom_line(aes(y = actual_vol, color = "Actual Volatility")) +
+  geom_line(aes(y = pred_vol, color = "Predicted Volatility")) +
+  theme_minimal() +
+  labs(x = "Time", y = "Volatility", 
+       title = "Line plot of Actual vs Predicted Volatility") +
+  scale_color_manual(values = c("Actual Volatility" = "blue", "Predicted Volatility" = "red"))
+
+# Display the plots
+scatter_plot
+line_plot
+
+
+
+```
+
+
+
+#HAV 
+
+
+```{r}
+
+list.HAV <- list()
+
+for (i in 1 : length(vol)) {
+  mean.vol <- rep(0, len.train - 5)
+  for (j in 1 : 5) {
+    mean.vol <- mean.vol + vol.train[[i]]$volatility[j : (j + len.train - 6)] / 5
+  }
+  list.HAV[[i]] <- data.frame(vol = vol.train[[i]]$volatility[-(1:5)], 
+                              vol_1 = vol.train[[i]]$volatility[5:(len.train - 1)],
+                              mean_vol_5 = mean.vol)
+}
+
+```
+
+```{r}
+
+quar <- list()
+comp_quar <- function(x) {
+  return(length(x) / 3 * sum(x ^ 4))
+}
+for (i in 1 : length(log_r1)) {
+  quar[[i]] <- aggregate(log_return ~ time_bucket, data = log_r1[[i]], FUN = comp_quar)
+  colnames(quar[[i]]) <- c('time_bucket', 'quarticity')
+}
+
+HAV.ols.models <- list()
+HAV.wls.models <- list()
+
+for (i in 1 : length(vol)) {
+  HAV.ols.models[[i]] <- lm(vol ~ vol_1 + mean_vol_5, list.HAV[[i]])
+  
+  # weight.HAV <- 0
+  HAV.wls.models[[i]] <- lm(vol ~ vol_1 + mean_vol_5, list.HAV[[i]],
+                            weights = list.HAV[[i]]$vol_1 / 
+                              sqrt(quar[[i]]$quarticity[5:(len.train - 1)]))
+}
+
+# HAV-RV performs well for some time buckets
+
+summary(HAV.wls.models[[162]])
+```
+
+```{r}
+mean_vol <- function(vol_data, window) {
+  sapply(1:(length(vol_data) - 1), function(j) {
+    mean(vol_data[max(1, j - window):j])
+  })
+}
+
+list.HAV.val <- list()
+pred.HAV <- list()
+
+for (i in seq_along(vol)) {
+# Create a new dataframe with the same structure as list.HAV used for model fitting
+  vol_data <- vol.val[[i]]$volatility
+  len.val <- length(vol_data)
+  
+  list.HAV.val[[i]] <- data.frame(
+    vol = vol_data[-1],
+    vol_1 = vol_data[-len.val],
+    mean_vol_5 = mean_vol(vol_data, 4)
+  )
+# Predict using the constructed list.HAV.val data  
+  pred.HAV[[i]] <- predict(HAV.wls.models[[i]], newdata = list.HAV.val[[i]])
+}
+
+```
+
+#compute two performance measures, QLIKE and MSE, from the prediction results under the one-shot estimation scheme for prediction
+
+```{r, warning=F, message=F}
+
+
+# Function to calculate QLIKE and MSE
+calc_metrics <- function(actual, pred) {
+  errors <- actual - pred
+  data.frame(QLIKE = errors^2 / actual, MSE = errors^2)
+}
+
+# Calculate QLIKE and MSE for each dataset
+metrics_list <- Map(calc_metrics, lapply(list.HAV.val, '[[', 'vol'), pred.HAV)
+
+# Convert lists to data.frames
+QLIKE_df <- do.call(rbind, lapply(metrics_list, function(x) data.frame(QLIKE = x$QLIKE)))
+MSE_df <- do.call(rbind, lapply(metrics_list, function(x) data.frame(MSE = x$MSE)))
+
+
+# Box plot for QLIKE
+QLIKE_plot <- ggplot(data = QLIKE_df, aes(x = factor(0), y = QLIKE)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x = "", y = "QLIKE", title = "QLIKE Box plot")
+
+# Box plot for MSE
+MSE_plot <- ggplot(data = MSE_df, aes(x = factor(0), y = MSE)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x = "", y = "MSE", title = "MSE Box plot")
+
+# Display the plots
+QLIKE_plot
+MSE_plot
+
+```
+
+
+```{r}
+
+
+calc_corr <- function(actual, pred) {
+  cor(actual, pred, method = "pearson")
+}
+
+
+correlations <- mapply(calc_corr, lapply(list.HAV.val, '[[', 'vol'), pred.HAV)
+
+
+vol_comparison <- do.call(rbind, Map(function(actual, pred, id) {
+  data.frame(time_id = id, actual_vol = actual, pred_vol = pred)
+}, lapply(list.HAV.val, '[[', 'vol'), pred.HAV, time_IDs[1:length(pred.HAV)]))
+
+
+scatter_plot <- ggplot(vol_comparison, aes(x = actual_vol, y = pred_vol)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Realized Volatility", y = "Predicted Volatility", title = "Scatter plot of Realized vs Predicted Volatility")
+
+
+line_plot <- ggplot(vol_comparison, aes(x = time_id)) +
+  geom_line(aes(y = actual_vol, color = "Realized Volatility")) +
+  geom_line(aes(y = pred_vol, color = "Predicted Volatility")) +
+  theme_minimal() +
+  labs(x = "Time ID", y = "Volatility", title = "Line plot of Realized vs Predicted Volatility") +
+  scale_color_manual(values = c("Realized Volatility" = "blue", "Predicted Volatility" = "red"))
+
+scatter_plot
+line_plot
+
+```
+
+
+This code calculates the correlations between the actual and predicted volatilities, shows how closely the predicted volatility matches the realized volatility
+
+# arma-garch
+
+```{r}
+
+spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)), 
+                   mean.model = list(armaOrder = c(1, 1)), 
+                   distribution.model = "norm")
+ARMA_GARCH.models <- list()
+  
+for (i in 1 : length(vol)) {
+  ARMA_GARCH.models[[i]] <- ugarchfit(spec = spec, data = log_r1[[i]] %>% 
+                                        filter(time <= 480) %>% pull(log_return),
+                                      solver = 'hybrid')
+}
+
+
+
+```
+```{r}
+
+RV.pred <- rep(0, length(vol))
+for (i in 1 : length(vol)) {
+  fspec <- getspec(ARMA_GARCH.models[[i]])
+  setfixed(fspec) <- as.list(coef(ARMA_GARCH.models[[i]]))
+  future.path <- fitted(ugarchpath(fspec, n.sim = 30, m.sim = 1000))
+  # Due to numerical issues, sometimes NA value can be produced 
+  # We simply replace NA value with 0; you may come up with a better idea in your own project
+  future.path[is.na(future.path)] <- 0 
+  RV.pred[i] <- mean(sqrt(colSums(future.path ^ 2)))
+}
+
+```
+```{r}
+
+# Split the data into training and validation datasets
+train_data <- log_r1[1:400]
+validation_data <- log_r1[401:length(log_r1)]
+
+# Fit ARMA-GARCH models to the training dataset
+ARMA_GARCH.models <- lapply(train_data, function(data) {
+  ugarchfit(spec = spec, data = data$log_return, solver = 'hybrid')
+})
+
+# Predict realized volatility for the validation dataset
+RV.pred <- lapply(ARMA_GARCH.models, function(model) {
+  fspec <- getspec(model)
+  setfixed(fspec) <- as.list(coef(model))
+  future.path <- fitted(ugarchpath(fspec, n.sim = 30, m.sim = 1000))
+  future.path[is.na(future.path)] <- 0
+  mean(sqrt(colSums(future.path^2)))
+})
+
+# Calculate QLIKE for the validation dataset
+QLIKE <- lapply(ARMA_GARCH.models, function(model) {
+  forecast <- ugarchforecast(model, data = validation_data)
+  forecast@forecast$QLIKE
+})
+
+# Calculate MSE for the validation dataset
+MSE <- mapply(function(pred, obs) {
+  mean((pred - obs)^2)
+}, RV.pred, sapply(validation_data, function(data) data$volatility))
+
+# Print the performance measures
+print(QLIKE)
+print(MSE)
+
+
+
+```
+```{r}
+library(ggplot2)
+
+
+
+# Plot QLIKE performance measure
+ggplot(df, aes(x = index, y = QLIKE)) +
+  geom_line() +
+  labs(x = "Index", y = "QLIKE") +
+  ggtitle("QLIKE Performance Measure in Validation Dataset")
+
+# Plot MSE performance measure
+ggplot(df, aes(x = index, y = MSE)) +
+  geom_line() +
+  labs(x = "Index", y = "MSE") +
+  ggtitle("MSE Performance Measure in Validation Dataset")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
