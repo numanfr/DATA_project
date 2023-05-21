@@ -48,16 +48,28 @@ ui <- fluidPage(
              #first
              tabPanel("Introduction",
                       navlistPanel(tabPanel("Aim",
-                                           p("We want to develop an app for optiver that can accurately predict the volatility of financial products. Users can use this app to predict the volatility of more than 100 stocks in a certain period of time.
+                                           p("We sought to capture volatility across 126 different stocks in different time intervals, predicting volatility through a two minute time interval and a ten minute time interval. 
+                                           We visualised our results in the app to show how we can predict volatility of these stocks in a certain period of time.
+                                           We optimised our clustering through a tradeoff between accuracy and explainability to create our features.
+                                           We represented communication through displaying both the stock features and their volatility predictions in the Shiny App.
+                                           This app will show traders how different models and tools have been used to generate our predictions.
 
 ")),
-                                   tabPanel("For the crowed",
+                                   tabPanel("Target Audience",
                                             h3("Who is for?"),
-                                            HTML("Our main target audience is those engaged in the financial industry and those engaged in property management consulting. But anyone interested in investing in stocks can use this app and get information from it.
+                                            HTML("Our main target audience is those engaged in the financial services industry with our tool being useful for a range of people in different roles.
+                                            These roles include trading, asset management, hedge fund managers, equity research, brokerage and financial consultants.
+                                            Our app is also applicable for the use of academics and students, and for anyone who is looking into the role of data science in trading.
 "),
                                             h3("How to use this app?"),
-                                            HTML("Since our audience is quite broad, our expectation for the app is to be as simple and convenient as possible, so that users can search for effective information quickly. The format is simple and easier for users to use.")
-                                            ))),
+                                            HTML("Since our audience is quite broad, our expectation for the app is to be as simple and convenient as possible, so that users can search for effective information quickly. The format is simple and easier for users to use.
+                                                 "),
+                                            h3("Motivation"),
+                                            HTML("Our motivation stemmed from our financial understanding of volatility and using this to guide the features of a stock which we believed would best represent its volatility. 
+                                                 "),
+                                            ),
+                                   
+                                   )),
              
              
              
@@ -78,13 +90,13 @@ ui <- fluidPage(
                         column(3, h6("Dom", textOutput("dom")))),
                       
                       br(),
-                      p("Beta, DOM(market depth), and spread are financial indicators that provide different information about a stock or financial market:"),
+                      p("Beta, DOM (market depth), and spread are financial indicators that provide different information about a stock or financial market:"),
                       strong("Beta:"),
                       p("Beta is a measure of a stock's risk relative to the market. A beta of 1 indicates that the price of a stock moves with the market. A beta coefficient of less than 1 means a stock is less volatile than the market, while a beta of more than 1 means a stock is more volatile. Beta is very useful in portfolio construction, where one can balance between high beta stocks and low beta stocks to achieve an acceptable level of market risk."),
-                      strong("DOM(Market depth): "),
+                      strong("DOM (Market depth): "),
                       p("Market depth is a measure of security supply and demand. It usually shows the number of open buy and sell orders for a security at different prices. The depth of market data can provide information about the liquidity of securities, and securities with large buy and sell orders at many price levels are considered more liquid. Liquidity is an important characteristic of traders because it describes the extent to which assets can be bought and sold quickly without affecting the price of the asset."),
                       strong("Spread: "),
-                      p("The spread is the difference between the bid price (the highest price a buyer is willing to pay for an asset) and the ask price (the lowest price a seller is willing to accept). A narrower spread indicates a more liquid market, while a wider spread indicates a less liquid market. Spreads affect transaction costs (transaction costs), so they are of great interest to traders and investors.)" )
+                      p("The spread is the difference between the bid price (the highest price a buyer is willing to pay for an asset) and the ask price (the lowest price a seller is willing to accept). A narrower spread indicates a more liquid market, while a wider spread indicates a less liquid market. Spreads affect transaction costs (transaction costs), so they are of great interest to traders and investors." )
                       ),
                       
                       
