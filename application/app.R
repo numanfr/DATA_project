@@ -123,7 +123,20 @@ ui <- fluidPage(
                                    )
                                  )
                                )
-                      )       
+                      ),
+                      tabPanel("Top 40 Important Features",
+                               sidebarLayout(
+                                 sidebarPanel(HTML("Top 40 Important Features"),width = 3
+                                 ),
+                                 mainPanel(
+                                   fluidRow(
+                                     column(7,imageOutput("photo4")),
+                                     column(5,imageOutput("photo5")),
+                                     width = 9
+                                   )
+                                 )
+                               )
+                      )
                       ),
              
              
@@ -205,6 +218,28 @@ server <- function(input, output) {
   output$photo3 <- renderImage({
     list(
       src = "4.png",
+      filetype = "image/png",
+      width = 450,
+      height = 600,
+      alt = "This is a chainring"
+    )
+    
+  }, deleteFile = FALSE)
+  
+  output$photo4 <- renderImage({
+    list(
+      src = "5.png",
+      filetype = "image/png",
+      width = 450,
+      height = 600,
+      alt = "This is a chainring"
+    )
+    
+  }, deleteFile = FALSE)
+  
+  output$photo5 <- renderImage({
+    list(
+      src = "6.png",
       filetype = "image/png",
       width = 450,
       height = 600,
