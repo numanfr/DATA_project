@@ -86,8 +86,8 @@ ui <- fluidPage(
                       
                       fluidRow(
                         column(3, h6("Beta", textOutput("beta"))),
-                        column(3, h6("Spred", textOutput("spread"))),
-                        column(3, h6("Dom", textOutput("dom")))),
+                        column(3, h6("Spread", textOutput("spread"))),
+                        column(3, h6("DOM", textOutput("dom")))),
                       
                       br(),
                       p("Beta, DOM (market depth), and spread are financial indicators that provide different information about a stock or financial market:"),
@@ -104,7 +104,7 @@ ui <- fluidPage(
              navbarMenu("LightGBM",
                       tabPanel("Model Feature Importance",
                                sidebarLayout(
-                                 sidebarPanel(HTML("ddd"),width = 3),
+                                 sidebarPanel(HTML("Model Feature Importance"),width = 3),
                                  mainPanel(fluidRow(
                                    column(7,imageOutput("photo")),
                                    column(5,imageOutput("photo1")),
@@ -113,7 +113,7 @@ ui <- fluidPage(
                                )),
                       tabPanel("Top 25 Important Features",
                                sidebarLayout(
-                                 sidebarPanel(HTML("sss"),width = 3
+                                 sidebarPanel(HTML("Top 25 Important Features"),width = 3
                                               ),
                                  mainPanel(
                                    fluidRow(
