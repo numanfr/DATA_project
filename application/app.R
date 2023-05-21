@@ -48,7 +48,7 @@ ui <- fluidPage(
              #first
              tabPanel("Introduction",
                       navlistPanel(tabPanel("Aim",
-                                           p("We sought to capture volatility across 126 different stocks in different time intervals, predicting volatility through a two minute time interval and a ten minute time interval. 
+                                           p("We sought to capture volatility across 126 different stocks in different time intervals, predicting volatility through a range of time intervals. 
                                            We visualised our results in the app to show how we can predict volatility of these stocks in a certain period of time.
                                            We optimised our clustering through a tradeoff between accuracy and explainability to create our features.
                                            We represented communication through displaying both the stock features and their volatility predictions in the Shiny App.
